@@ -3,6 +3,31 @@ var operator = '';
 var right = '';
 let wordPlaceholder = document.getElementById('word-result');
 
+// Theme toggle functionality
+const themeToggle = document.getElementById('theme-toggle');
+const htmlElement = document.documentElement;
+
+// Load saved theme
+const savedTheme = localStorage.getItem('theme') || 'light';
+if (savedTheme === 'dark') {
+    htmlElement.setAttribute('data-bs-theme', 'dark');
+    themeToggle.checked = true;
+} else {
+    htmlElement.setAttribute('data-bs-theme', 'light');
+    themeToggle.checked = false;
+}
+
+// Toggle theme on change
+themeToggle.addEventListener('change', () => {
+    if (themeToggle.checked) {
+        htmlElement.setAttribute('data-bs-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+    } else {
+        htmlElement.setAttribute('data-bs-theme', 'light');
+        localStorage.setItem('theme', 'light');
+    }
+});
+
 function appendToResult(value) {
     if (operator.length == 0) {
         left += value;
