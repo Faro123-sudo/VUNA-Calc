@@ -1,7 +1,9 @@
 var left = '';
 var operator = '';
 var right = '';
-let wordPlaceholder = document.getElementById('word-result');
+var steps = [];
+var MAX_STEPS = 6;
+
 
 // Theme toggle functionality
 const themeToggle = document.getElementById('theme-toggle');
@@ -29,21 +31,37 @@ themeToggle.addEventListener('change', () => {
 });
 
 function appendToResult(value) {
-    if (operator.length == 0) {
-        left += value;
+    if (operator.length === 0) {
+        left += value.toString();
     } else {
-        right += value;
+        right += value.toString();
     }
-
     updateResult();
 }
 
 function bracketToResult(value) {
-    document.getElementById('result').value += value;
+    if (operator.length === 0) {
+        left += value;
+    } else {
+        right += value;
+    }
+    updateResult();
+}
+
+function backspace() {
+    if (right.length > 0) {
+        right = right.slice(0, -1);
+    } else if (operator.length > 0) {
+        operator = '';
+    } else if (left.length > 0) {
+        left = left.slice(0, -1);
+    }
+    updateResult();
 }
 
 function operatorToResult(value) {
-    if (right.length) {
+    if (left.length === 0) return;
+    if (right.length > 0) {
         calculateResult();
     }
     operator = value;
@@ -51,204 +69,171 @@ function operatorToResult(value) {
 }
 
 function clearResult() {
-    left = '';
-    right = '';
-    operator = '';
+  left = "";
+  right = "";
+  operator = "";
+  steps = [];
 
-    wordPlaceholder.innerHTML = '';
-    updateResult();
+  document.getElementById("word-result").innerHTML = "";
+  document.getElementById("word-area").style.display = "none";
+  document.getElementById("steps").innerText = "";
+
+  updateResult();
+}
+
+
+
+function calculateResult() {
+  if (left.length === 0 || operator.length === 0 || right.length === 0) return;
+
+  const l = parseFloat(left);
+  const r = parseFloat(right);
+  let result;
+
+  switch (operator) {
+    case "+":
+      result = l + r;
+      break;
+    case "-":
+      result = l - r;
+      break;
+    case "*":
+      result = l * r;
+      break;
+    case "/":
+      result = r !== 0 ? l / r : "Error";
+      break;
+    default:
+      return;
+  }
+
+  if (steps.length < MAX_STEPS) {
+    steps.push(`Step ${steps.length + 1}: ${l} ${operator} ${r} = ${result}`);
+  }
+
+  left = result.toString();
+  operator = "";
+  right = "";
+
+  updateStepsDisplay();
+  updateResult();
+}
+
+
+
+function numberToWords(num) {
+    if (num === 'Error') return 'Error';
+    if (num === '') return '';
+
+    const n = parseFloat(num);
+    if (isNaN(n)) return '';
+    if (n === 0) return 'Zero';
+
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const scales = ['', 'Thousand', 'Million', 'Billion', 'Trillion'];
+
+    function convertGroup(val) {
+        let res = '';
+        if (val >= 100) {
+            res += ones[Math.floor(val / 100)] + ' Hundred ';
+            val %= 100;
+        }
+        if (val >= 10 && val <= 19) {
+            res += teens[val - 10] + ' ';
+        } else if (val >= 20) {
+            res += tens[Math.floor(val / 10)] + (val % 10 !== 0 ? '-' + ones[val % 10] : '') + ' ';
+        } else if (val > 0) {
+            res += ones[val] + ' ';
+        }
+        return res.trim();
+    }
+
+    let sign = n < 0 ? 'Negative ' : '';
+    let absN = Math.abs(n);
+    let parts = absN.toString().split('.');
+    let integerPart = parseInt(parts[0]);
+    let decimalPart = parts[1];
+
+    let wordArr = [];
+    if (integerPart === 0) {
+        wordArr.push('Zero');
+    } else {
+        let scaleIdx = 0;
+        while (integerPart > 0) {
+            let chunk = integerPart % 1000;
+            if (chunk > 0) {
+                let chunkWords = convertGroup(chunk);
+                wordArr.unshift(chunkWords + (scales[scaleIdx] ? ' ' + scales[scaleIdx] : ''));
+            }
+            integerPart = Math.floor(integerPart / 1000);
+            scaleIdx++;
+        }
+    }
+
+    let result = sign + wordArr.join(', ').trim();
+
+    if (decimalPart) {
+        result += ' Point';
+        for (let digit of decimalPart) {
+            result += ' ' + (digit === '0' ? 'Zero' : ones[parseInt(digit)]);
+        }
+    }
+
+    return result.trim();
 }
 
 function updateResult() {
-    document.getElementById('result').value = left + operator + right;
+    const display = left + (operator ? ' ' + operator + ' ' : '') + right;
+    document.getElementById('result').value = display || '0';
+
+    const wordResult = document.getElementById('word-result');
+    const wordArea = document.getElementById('word-area');
+
+    if (left && !operator && !right) {
+        wordResult.innerHTML = '<span class="small-label">Result in words</span><strong>' + numberToWords(left) + '</strong>';
+        wordArea.style.display = 'flex';
+    } else {
+        wordResult.innerHTML = '';
+        wordArea.style.display = 'none';
+    }
+    enableSpeakButton();
 }
 
+function speakResult() {
+    const speakBtn = document.getElementById('speak-btn');
+    const wordResultEl = document.getElementById('word-result');
 
-function backspace() {
-    if (right.length) {
-        right = right.slice(0, -1);
-        updateResult();
+    // Get text content only (strips the <span class="small-label"> part if needed)
+    // Actually we just want the number part
+    const words = wordResultEl.querySelector('strong')?.innerText || '';
+
+    if (!words) return;
+
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        speakBtn.classList.remove('speaking');
         return;
     }
 
-    if (operator.length) {
-        operator = '';
-        updateResult();
-        return;
-    }
-
-    if (left.length) {
-        left = left.slice(0, -1);
-        updateResult();
-    }
+    const utterance = new SpeechSynthesisUtterance(words);
+    utterance.rate = 0.9;
+    utterance.onstart = () => speakBtn.classList.add('speaking');
+    utterance.onend = () => speakBtn.classList.remove('speaking');
+    window.speechSynthesis.speak(utterance);
 }
 
-function calculateResult() {
-    try {
-        let leftVal = parseFloat(left);
-        let rightVal = parseFloat(right);
-        let result = 0;
-
-        /* SENDING TO THE SERVER
-        let data = {
-            left: leftVal,
-            right: rightVal,
-            operator: operator,
-        };  
-
-        
-        let xhr = new XMLHttpRequest();
-        // xhr.setRequestHeader( 'Content-Type', 'application/json' );
-        xhr.open( 'POST', window.location.origin+'/server.php', true );
-        xhr.onreadystatechange = function(){
-            if( xhr.readyState == 4 ){
-                result = xhr.response;
-                console.log( 'result', result );
-            }
-        };
-        
-        xhr.send( JSON.stringify(data) );
-        alert('Sending'); */
-
-        switch (operator) {
-            case '+':
-                result = leftVal + rightVal;
-                break;
-            case '-':
-                result = leftVal - rightVal;
-                break;
-            case '*':
-                result = leftVal * rightVal;
-                break;
-            case '/':
-                result = leftVal / rightVal;
-                break;
-        }
-
-        if (!isNaN(result)) {
-            left = result.toString();
-
-            right = '';
-            operator = '';
-            updateResult();
-            numberToWords(result.toString());
-        }
-
-    } catch (error) {
-        document.getElementById('result').value = 'Error';
-    }
+function enableSpeakButton() {
+    const speakBtn = document.getElementById('speak-btn');
+    if (!speakBtn) return;
+    const hasContent = document.getElementById('word-result').innerHTML.trim().length > 0;
+    speakBtn.disabled = !hasContent;
 }
 
-function applyFunction(func) {
-    let value = parseFloat(left);
-    if (isNaN(value)) {
-        document.getElementById('result').value = 'Error';
-        return;
-    }
+function updateStepsDisplay() {
+  const stepsDiv = document.getElementById("steps");
+  if (!stepsDiv) return;
 
-    let result;
-    try {
-        switch (func) {
-            case 'sin':
-                result = Math.sin(value * Math.PI / 180); // Assuming degrees
-                break;
-            case 'cos':
-                result = Math.cos(value * Math.PI / 180);
-                break;
-            case 'tan':
-                result = Math.tan(value * Math.PI / 180);
-                break;
-            case 'sqrt':
-                if (value < 0) throw new Error('Invalid input');
-                result = Math.sqrt(value);
-                break;
-            default:
-                throw new Error('Unknown function');
-        }
-
-        left = result.toString();
-        right = '';
-        operator = '';
-        updateResult();
-        numberToWords(result.toString());
-    } catch (error) {
-        document.getElementById('result').value = 'Error';
-        wordPlaceholder.innerHTML = '';
-    }
-}
-
-function numberToWords(numVal) {
-    const unitsMap = [
-        "", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-        "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
-        "seventeen", "eighteen", "nineteen"
-    ];
-
-    const tensMap = [
-        "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"
-    ];
-
-    const scales = ["", "thousand", "million", "billion", "trillion"];
-
-    let words = "";
-    let scaleIndex = 0;
-
-    let wordArr = [];
-
-    let splitedNum = numVal.split( '.' );
-    for( let i=0; i<splitedNum.length; i++ ){
-        let num = splitedNum[i];
-        if (num === 0) {
-            wordPlaceholder.innerHTML = 'Zero';
-        }
-
-        while (num > 0) {
-            let currentNum = num % 1000;
-            num = Math.floor(num / 1000);
-    
-            let currentWords = "";
-    
-            // console.log('current num', currentNum);
-            // console.log('num', num);
-            const hundreds = Math.floor(currentNum / 100);
-            currentNum %= 100;
-    
-            // console.log('hundreds', hundreds);
-            // console.log('current num', currentNum);
-    
-            if (hundreds > 0) {
-                currentWords += unitsMap[hundreds] + " hundred ";
-            }
-    
-            if (currentNum > 0) {
-                if (currentNum < 20) {
-                    currentWords += unitsMap[currentNum] + " ";
-                } else {
-                    const tens = Math.floor(currentNum / 10);
-                    const units = currentNum % 10;
-    
-                    currentWords += tensMap[tens] + " ";
-                    if (units > 0) {
-                        currentWords += unitsMap[units] + " ";
-                    }
-                }
-            }
-    
-            if (currentWords.trim() !== "") {
-                // console.log('Words1', words);
-                words = currentWords.trim() + ' ' + scales[scaleIndex] + " " + words;
-                // console.log('Words2', words);
-            }
-    
-            scaleIndex++;
-        }
-
-        // console.log(words.trim());
-        wordArr.push(words.trim());
-        scaleIndex = 0;
-        words = '';
-    }
-
-    wordPlaceholder.innerHTML = wordArr.join(' point ');
-    // return ;
+  stepsDiv.innerText = steps.join("\n");
 }
